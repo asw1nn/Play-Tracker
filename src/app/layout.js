@@ -19,13 +19,17 @@ export const metadata = {
     description: "Premium Workout Tracker",
 };
 
+import { AuthProvider } from "../contexts/AuthContext";
+
 export default function RootLayout({ children }) {
     return (
         <html lang="en">
             <body
                 className={`${workSans.variable} ${tienne.variable} antialiased font-sans`}
             >
-                {children}
+                <AuthProvider>
+                    {children}
+                </AuthProvider>
             </body>
         </html>
     );

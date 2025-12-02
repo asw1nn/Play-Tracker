@@ -33,7 +33,7 @@ export default function HistoryView({ history, onDelete }) {
                                 <Folder size={20} />
                             </div>
                             <div>
-                                <h3 className="font-bold text-text-primary">Workout Session</h3>
+                                <h3 className="font-bold text-text-primary">{session.name || 'Workout Session'}</h3>
                                 <p className="text-xs text-text-secondary flex items-center gap-1">
                                     <Calendar size={10} />
                                     {new Date(session.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}

@@ -1,13 +1,20 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Timer, Folder, Calendar, Save, Play, Dumbbell, Activity, Heart } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../contexts/AuthContext';
+import api from '../lib/api';
 
-// Placeholder components - will be implemented next
+// Components
 import ExerciseCard from '../components/ExerciseCard';
 import StopwatchOverlay from '../components/StopwatchOverlay';
 import HistoryView from '../components/HistoryView';
+import UserProfile from '../components/UserProfile';
+import ExerciseSearchModal from '../components/ExerciseSearchModal';
+import AIWorkoutModal from '../components/AIWorkoutModal';
+import { Plus, Timer, Calendar, Save, Play, Dumbbell, Activity, Heart, LogIn, Search, Brain } from 'lucide-react';
 
 const WORKOUT_TEMPLATES = {
     push: [
@@ -41,34 +48,86 @@ const WORKOUT_TEMPLATES = {
 };
 
 export default function Home() {
+    const { user, isAuthenticated, loading: authLoading } = useAuth();
+    const router = useRouter();
+
     const [workoutData, setWorkoutData] = useState([]);
+    const [workoutName, setWorkoutName] = useState('');
     const [history, setHistory] = useState([]);
     const [viewMode, setViewMode] = useState('current'); // 'current' or 'history'
     const [isTimerVisible, setIsTimerVisible] = useState(false);
     const [timerSeconds, setTimerSeconds] = useState(0);
     const [isTimerRunning, setIsTimerRunning] = useState(false);
     const [laps, setLaps] = useState([]);
+    const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
 
     const timerInterval = useRef(null);
 
-    // Load data on mount
-    useEffect(() => {
-        const savedData = localStorage.getItem('playTrackerData');
-        if (savedData) {
-            const parsed = JSON.parse(savedData);
-            setWorkoutData(parsed.current || []);
-            setHistory(parsed.history || []);
-        }
-    }, []);
+    const handleApplyAIWorkout = (exercises) => {
+        setWorkoutData(exercises);
+        setWorkoutName('AI Generated Workout');
+        setIsAIModalOpen(false);
+    };
 
-    // Save data on change
+    // Load data logic
     useEffect(() => {
-        const dataToSave = {
-            current: workoutData,
-            history: history
+        const loadData = async () => {
+            if (isAuthenticated) {
+                try {
+                    // Fetch from API
+                    const response = await api.get('/workouts');
+                    setHistory(response.data.workouts);
+
+                    // Check for local data to migrate
+                    const localData = localStorage.getItem('playTrackerData');
+                    if (localData) {
+                        const parsed = JSON.parse(localData);
+                        if (parsed.history && parsed.history.length > 0) {
+                            // Migrate data
+                            await api.post('/workouts/migrate', { history: parsed.history });
+                            // Refresh history
+                            const newResponse = await api.get('/workouts');
+                            setHistory(newResponse.data.workouts);
+                            // Clear local history but keep current workout if any
+                            localStorage.removeItem('playTrackerData');
+                            if (parsed.current && parsed.current.length > 0) {
+                                setWorkoutData(parsed.current);
+                                setWorkoutName(parsed.name || '');
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Failed to load workouts:', error);
+                }
+            } else {
+                // Load from localStorage
+                const savedData = localStorage.getItem('playTrackerData');
+                if (savedData) {
+                    const parsed = JSON.parse(savedData);
+                    setWorkoutData(parsed.current || []);
+                    setWorkoutName(parsed.name || '');
+                    setHistory(parsed.history || []);
+                }
+            }
         };
-        localStorage.setItem('playTrackerData', JSON.stringify(dataToSave));
-    }, [workoutData, history]);
+
+        if (!authLoading) {
+            loadData();
+        }
+    }, [isAuthenticated, authLoading]);
+
+    // Save current workout state locally (draft)
+    useEffect(() => {
+        if (!isAuthenticated) {
+            const dataToSave = {
+                current: workoutData,
+                name: workoutName,
+                history: history
+            };
+            localStorage.setItem('playTrackerData', JSON.stringify(dataToSave));
+        }
+    }, [workoutData, history, isAuthenticated]);
 
     // Timer Logic
     useEffect(() => {
@@ -102,6 +161,15 @@ export default function Home() {
         setWorkoutData([...workoutData, newExercise]);
     };
 
+    const handleAddFromDatabase = (exerciseData) => {
+        const newExercise = {
+            id: Date.now(),
+            name: exerciseData.name,
+            sets: [{ id: Date.now() + 1, weight: '', reps: '', completed: false }]
+        };
+        setWorkoutData([...workoutData, newExercise]);
+    };
+
     const loadTemplate = (type) => {
         const template = WORKOUT_TEMPLATES[type];
         const newExercises = template.map((ex, index) => ({
@@ -110,6 +178,7 @@ export default function Home() {
             sets: ex.sets.map(s => ({ ...s, id: Date.now() + index * 100 + 1 }))
         }));
         setWorkoutData(newExercises);
+        setWorkoutName(`${type.charAt(0).toUpperCase() + type.slice(1)} Workout`);
     };
 
     const updateExercise = (id, field, value) => {
@@ -120,16 +189,51 @@ export default function Home() {
         setWorkoutData(workoutData.filter(ex => ex.id !== id));
     };
 
-    const saveWorkout = () => {
+    const saveWorkout = async () => {
         if (workoutData.length === 0) return;
+
         const newSession = {
-            id: Date.now(),
+            id: Date.now(), // Temporary ID for UI
             date: new Date().toISOString(),
-            exercises: workoutData
+            exercises: workoutData,
+            name: workoutName || 'Workout Session'
         };
-        setHistory([...history, newSession]);
-        setWorkoutData([]);
-        setViewMode('history');
+
+        if (isAuthenticated) {
+            try {
+                const response = await api.post('/workouts', {
+                    date: newSession.date,
+                    exercises: newSession.exercises,
+                    name: newSession.name
+                });
+                setHistory([response.data.workout, ...history]);
+                setWorkoutData([]);
+                setWorkoutName('');
+                setViewMode('history');
+            } catch (error) {
+                console.error('Failed to save workout:', error);
+                alert('Failed to save workout. Please try again.');
+            }
+        } else {
+            setHistory([...history, newSession]);
+            setWorkoutData([]);
+            setWorkoutName('');
+            setViewMode('history');
+            router.push('/auth'); // Redirect to auth page after saving locally
+        }
+    };
+
+    const handleDeleteHistory = async (id) => {
+        if (isAuthenticated) {
+            try {
+                await api.delete(`/workouts/${id}`);
+                setHistory(history.filter(h => h.id !== id));
+            } catch (error) {
+                console.error('Failed to delete workout:', error);
+            }
+        } else {
+            setHistory(history.filter(h => h.id !== id));
+        }
     };
 
     return (
@@ -143,9 +247,22 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* Top Right Logo - Responsive Positioning */}
-                <div className="absolute top-4 right-4 w-10 h-10 md:top-6 md:right-6 md:w-[60px] md:h-[60px] rounded-full overflow-hidden border border-primary/30 shadow-lg z-20">
-                    <Image src="/logo.jpg" alt="Logo" fill className="object-cover" />
+                {/* Top Right Controls */}
+                <div className="absolute top-4 right-4 flex items-center gap-3 z-20">
+                    {isAuthenticated ? (
+                        <UserProfile />
+                    ) : (
+                        <Link
+                            href="/auth"
+                            className="flex items-center gap-2 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-full px-4 py-1.5 transition-all font-bold text-sm"
+                        >
+                            <LogIn size={16} />
+                            <span className="hidden md:inline">Login / Register</span>
+                        </Link>
+                    )}
+                    <div className="w-10 h-10 md:w-[60px] md:h-[60px] rounded-full overflow-hidden border border-primary/30 shadow-lg relative">
+                        <Image src="/logo.jpg" alt="Logo" fill className="object-cover" />
+                    </div>
                 </div>
 
                 <div className="relative z-10 w-full max-w-md md:max-w-3xl lg:max-w-5xl mx-auto pl-2 md:pl-4">
@@ -156,6 +273,16 @@ export default function Home() {
                             <Calendar size={14} />
                             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </p>
+
+                        {viewMode === 'current' && (
+                            <input
+                                type="text"
+                                value={workoutName}
+                                onChange={(e) => setWorkoutName(e.target.value)}
+                                placeholder="Workout Name"
+                                className="bg-transparent border-b border-border text-text-primary text-sm md:text-base font-bold focus:outline-none focus:border-primary w-32 md:w-48 text-right placeholder:text-text-secondary/50"
+                            />
+                        )}
 
                         {viewMode === 'current' && workoutData.length > 0 && (
                             <button
@@ -237,7 +364,7 @@ export default function Home() {
                         )}
                     </div>
                 ) : (
-                    <HistoryView history={history} onDelete={(id) => setHistory(history.filter(h => h.id !== id))} />
+                    <HistoryView history={history} onDelete={handleDeleteHistory} />
                 )}
             </main>
 
@@ -245,12 +372,28 @@ export default function Home() {
             <div className="fixed bottom-6 right-6 md:bottom-10 md:right-10 flex flex-col gap-4 md:gap-6 z-50 items-end">
                 {viewMode === 'current' && (
                     <>
+                        {/* AI Workout Button */}
+                        <button
+                            onClick={() => setIsAIModalOpen(true)}
+                            className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-gradient-to-br from-purple-500 to-blue-600 text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform group border border-white/20"
+                        >
+                            <Brain size={20} className="md:w-7 md:h-7 group-hover:animate-pulse" />
+                        </button>
+
                         {/* Timer Button - Glassmorphism */}
                         <button
                             onClick={() => setIsTimerVisible(true)}
                             className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-surface/30 backdrop-blur-md border border-white/10 text-primary flex items-center justify-center shadow-lg hover:scale-105 transition-transform group"
                         >
                             <Timer size={20} className="md:w-7 md:h-7 group-hover:rotate-12 transition-transform" />
+                        </button>
+
+                        {/* Search Button */}
+                        <button
+                            onClick={() => setIsSearchModalOpen(true)}
+                            className="w-12 h-12 md:w-16 md:h-16 rounded-full bg-surface/30 backdrop-blur-md border border-white/10 text-blue-400 flex items-center justify-center shadow-lg hover:scale-105 transition-transform group"
+                        >
+                            <Search size={20} className="md:w-7 md:h-7" />
                         </button>
 
                         {/* Add Button - Enhanced */}
@@ -274,6 +417,20 @@ export default function Home() {
                 onReset={handleReset}
                 onLap={handleLap}
                 onClose={() => setIsTimerVisible(false)}
+            />
+
+            {/* Exercise Search Modal */}
+            <ExerciseSearchModal
+                isOpen={isSearchModalOpen}
+                onClose={() => setIsSearchModalOpen(false)}
+                onAddExercise={handleAddFromDatabase}
+            />
+
+            {/* AI Workout Modal */}
+            <AIWorkoutModal
+                isOpen={isAIModalOpen}
+                onClose={() => setIsAIModalOpen(false)}
+                onApplyWorkout={handleApplyAIWorkout}
             />
         </div>
     );
