@@ -260,29 +260,16 @@ export default function Home() {
                             <span className="hidden md:inline">Login / Register</span>
                         </Link>
                     )}
-                    <div className="w-10 h-10 md:w-[60px] md:h-[60px] rounded-full overflow-hidden border border-primary/30 shadow-lg relative">
-                        <Image src="/logo.jpg" alt="Logo" fill className="object-cover" />
-                    </div>
                 </div>
 
                 <div className="relative z-10 w-full max-w-md md:max-w-3xl lg:max-w-5xl mx-auto pl-2 md:pl-4">
                     <h1 className="text-4xl md:text-6xl font-black font-serif italic text-primary tracking-tight uppercase mb-1 drop-shadow-sm">Play Tracker</h1>
 
-                    <div className="flex items-center justify-between w-full pr-16 md:pr-20">
+                    <div className="flex items-center justify-between w-full">
                         <p className="text-text-secondary text-xs md:text-sm font-medium flex items-center gap-2">
                             <Calendar size={14} />
                             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </p>
-
-                        {viewMode === 'current' && (
-                            <input
-                                type="text"
-                                value={workoutName}
-                                onChange={(e) => setWorkoutName(e.target.value)}
-                                placeholder="Workout Name"
-                                className="bg-transparent border-b border-border text-text-primary text-sm md:text-base font-bold focus:outline-none focus:border-primary w-32 md:w-48 text-right placeholder:text-text-secondary/50"
-                            />
-                        )}
 
                         {viewMode === 'current' && workoutData.length > 0 && (
                             <button
