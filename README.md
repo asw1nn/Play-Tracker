@@ -29,8 +29,8 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Deploy on Vercel
+## Demo deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Deploy this repository to Vercel. In the Vercel project settings, set the environment variable `NEXT_PUBLIC_API_URL` to the deployed Render API URL with the `/api` suffix (for example, `https://play-tracker-api.onrender.com/api`), then redeploy. The backend's `FRONTEND_URL` must be set to the Vercel deployment origin, without a trailing slash.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The API URL defaults to `http://localhost:3001/api` for local development. Do not use that default for the deployed site.
