@@ -9,8 +9,8 @@ export default function ExerciseSearchModal({ isOpen, onClose, onAddExercise }) 
     const [mounted, setMounted] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState([]);
-    const [loading, setLoading] = useState(false);
     const [searching, setSearching] = useState(false);
+    const [searchError, setSearchError] = useState('');
     const [expandedId, setExpandedId] = useState(null);
     const [exerciseImages, setExerciseImages] = useState({});
 
@@ -20,23 +20,35 @@ export default function ExerciseSearchModal({ isOpen, onClose, onAddExercise }) 
     }, []);
 
     useEffect(() => {
+        const term = searchTerm.trim();
+        const controller = new AbortController();
         const delayDebounceFn = setTimeout(async () => {
-            if (searchTerm.length >= 3) {
+            if (term.length >= 3) {
                 setSearching(true);
+                setSearchError('');
                 try {
-                    const data = await searchExercises(searchTerm);
+                    const data = await searchExercises(term, { signal: controller.signal });
                     setResults(data.slice(0, 20));
                 } catch (error) {
-                    console.error('Search failed', error);
+                    if (error.name !== 'AbortError') {
+                        console.error('Search failed', error);
+                        setResults([]);
+                        setSearchError('Exercise search is unavailable right now. Please try again.');
+                    }
                 } finally {
-                    setSearching(false);
+                    if (!controller.signal.aborted) setSearching(false);
                 }
             } else {
                 setResults([]);
+                setSearchError('');
+                setSearching(false);
             }
         }, 500);
 
-        return () => clearTimeout(delayDebounceFn);
+        return () => {
+            clearTimeout(delayDebounceFn);
+            controller.abort();
+        };
     }, [searchTerm]);
 
     const handleExpand = async (exerciseId) => {
@@ -99,13 +111,19 @@ export default function ExerciseSearchModal({ isOpen, onClose, onAddExercise }) 
 
                 {/* Results List */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                    {results.length === 0 && !searching && searchTerm.length >= 3 && (
+                    {results.length === 0 && !searching && searchError && (
                         <div className="text-center py-12 text-text-secondary">
-                            <p>No exercises found matching "{searchTerm}"</p>
+                            <p>{searchError}</p>
                         </div>
                     )}
 
-                    {results.length === 0 && searchTerm.length < 3 && (
+                    {results.length === 0 && !searching && !searchError && searchTerm.trim().length >= 3 && (
+                        <div className="text-center py-12 text-text-secondary">
+                            <p>No exercises found matching "{searchTerm.trim()}"</p>
+                        </div>
+                    )}
+
+                    {results.length === 0 && searchTerm.trim().length < 3 && (
                         <div className="text-center py-12 text-text-secondary">
                             <Search size={48} className="mx-auto mb-4 opacity-20" />
                             <p>Type at least 3 characters to search</p>

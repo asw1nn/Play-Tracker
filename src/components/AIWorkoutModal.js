@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Brain, Activity, Clock, Target, Dumbbell, Sparkles, ChevronRight, ChevronLeft, Check, RefreshCw, Play } from 'lucide-react';
+import { X, Brain, Activity, Clock, Target, Dumbbell, Sparkles, ChevronRight, ChevronLeft, Check, RefreshCw, Play, PersonStanding, Footprints, BatteryLow, Zap, Flame } from 'lucide-react';
 import { generateAIWorkout } from '../lib/aiWorkout';
 
 const STEPS = {
@@ -14,18 +14,19 @@ const STEPS = {
 };
 
 const MUSCLE_GROUPS = [
-    { id: 'chest', label: 'Chest', icon: '🏋️' },
-    { id: 'back', label: 'Back', icon: '💪' },
-    { id: 'shoulders', label: 'Shoulders', icon: '🤷' },
-    { id: 'legs', label: 'Legs', icon: '🦵' },
-    { id: 'biceps', label: 'Biceps', icon: '💪' },
-    { id: 'triceps', label: 'Triceps', icon: '💪' },
-    { id: 'core', label: 'Core', icon: '🍫' }
+    { id: 'chest', label: 'Chest', icon: Dumbbell },
+    { id: 'back', label: 'Back', icon: Activity },
+    { id: 'shoulders', label: 'Shoulders', icon: PersonStanding },
+    { id: 'legs', label: 'Legs', icon: Footprints },
+    { id: 'biceps', label: 'Biceps', icon: Dumbbell },
+    { id: 'triceps', label: 'Triceps', icon: Dumbbell },
+    { id: 'core', label: 'Core', icon: Target }
 ];
 
 export default function AIWorkoutModal({ isOpen, onClose, onApplyWorkout }) {
     const [step, setStep] = useState(STEPS.ENERGY);
     const [loading, setLoading] = useState(false);
+    const [generationError, setGenerationError] = useState('');
     const [generatedWorkout, setGeneratedWorkout] = useState(null);
 
     const [inputs, setInputs] = useState({
@@ -59,13 +60,14 @@ export default function AIWorkoutModal({ isOpen, onClose, onApplyWorkout }) {
 
     const handleGenerate = async () => {
         setLoading(true);
+        setGenerationError('');
         try {
             const result = await generateAIWorkout(inputs);
             setGeneratedWorkout(result);
             setStep(STEPS.RESULTS);
         } catch (error) {
             console.error('Generation failed', error);
-            // Handle error (toast/alert)
+            setGenerationError(error.message || 'Could not generate a workout. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -148,9 +150,9 @@ export default function AIWorkoutModal({ isOpen, onClose, onApplyWorkout }) {
 
                             <div className="grid gap-4">
                                 {[
-                                    { id: 'low', label: 'Low Energy', desc: 'Lighter weights, fewer sets, focus on movement.', icon: '🔋' },
-                                    { id: 'medium', label: 'Feeling Good', desc: 'Standard volume and intensity.', icon: '⚡' },
-                                    { id: 'high', label: 'Beast Mode', desc: 'High volume, high intensity, push your limits.', icon: '🔥' }
+                                    { id: 'low', label: 'Low Energy', desc: 'Lighter weights, fewer sets, focus on movement.', icon: BatteryLow },
+                                    { id: 'medium', label: 'Feeling Good', desc: 'Standard volume and intensity.', icon: Zap },
+                                    { id: 'high', label: 'Beast Mode', desc: 'High volume, high intensity, push your limits.', icon: Flame }
                                 ].map((option) => (
                                     <button
                                         key={option.id}
@@ -160,7 +162,7 @@ export default function AIWorkoutModal({ isOpen, onClose, onApplyWorkout }) {
                                                 ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(244,208,63,0.2)]'
                                                 : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                     >
-                                        <span className="text-3xl">{option.icon}</span>
+                                        <option.icon size={30} className="shrink-0 text-primary" strokeWidth={1.75} />
                                         <div>
                                             <h4 className={`font-bold text-lg ${inputs.energyLevel === option.id ? 'text-primary' : 'text-white'}`}>
                                                 {option.label}
@@ -194,7 +196,7 @@ export default function AIWorkoutModal({ isOpen, onClose, onApplyWorkout }) {
                                                 ? 'bg-blue-500/20 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)]'
                                                 : 'bg-white/5 border-white/10 hover:bg-white/10'}`}
                                     >
-                                        <span className="text-2xl">{muscle.icon}</span>
+                                        <muscle.icon size={28} className={inputs.targetMuscles.includes(muscle.id) ? 'text-blue-400' : 'text-text-secondary'} strokeWidth={1.75} />
                                         <span className={`font-bold ${inputs.targetMuscles.includes(muscle.id) ? 'text-blue-400' : 'text-white'}`}>
                                             {muscle.label}
                                         </span>
@@ -344,7 +346,11 @@ export default function AIWorkoutModal({ isOpen, onClose, onApplyWorkout }) {
 
                 {/* Footer Navigation */}
                 {!loading && step !== STEPS.RESULTS && (
-                    <div className="p-6 border-t border-white/10 bg-surface flex justify-between items-center">
+                    <div className="p-6 border-t border-white/10 bg-surface flex flex-col gap-4">
+                        {generationError && (
+                            <p role="alert" className="text-sm text-red-400">{generationError}</p>
+                        )}
+                        <div className="flex justify-between items-center">
                         <button
                             onClick={handleBack}
                             disabled={step === STEPS.ENERGY}
@@ -377,6 +383,7 @@ export default function AIWorkoutModal({ isOpen, onClose, onApplyWorkout }) {
                             {step === STEPS.GOAL ? 'Generate' : 'Next'}
                             {step === STEPS.GOAL ? <Sparkles size={18} /> : <ChevronRight size={18} />}
                         </button>
+                        </div>
                     </div>
                 )}
 
